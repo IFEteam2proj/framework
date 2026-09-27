@@ -1,0 +1,115 @@
+"""
+Sample data generator and template provider for the Black-Litterman model.
+Provides standard asset universe, covariance matrix, market weights,
+and sample investor views.
+"""
+
+from typing import Tuple, List
+import numpy as np
+import pandas as pd
+
+
+SAMPLE_ASSETS = ["SPY (미국 대형주)", "EFA (선진국 주식)", "EEM (신흥국 주식)", "TLT (미국 장기채)", "GLD (금)"]
+
+SAMPLE_MARKET_WEIGHTS = {
+    "SPY (미국 대형주)": 0.45,
+    "EFA (선진국 주식)": 0.25,
+    "EEM (신흥국 주식)": 0.10,
+    "TLT (미국 장기채)": 0.15,
+    "GLD (금)": 0.05
+}
+
+# Annualized covariance matrix for the 5 assets
+SAMPLE_COV_DATA = [
+    [0.0324, 0.0245, 0.0280, -0.0045, 0.0030],
+    [0.0245, 0.0361, 0.0315, -0.0032, 0.0040],
+    [0.0280, 0.0315, 0.0576, -0.0020, 0.0075],
+    [-0.0045, -0.0032, -0.0020, 0.0196, 0.0025],
+    [0.0030, 0.0040, 0.0075, 0.0025, 0.0256]
+]
+
+
+def get_sample_market_weights_df() -> pd.DataFrame:
+    """Returns a DataFrame of sample assets and their market weights."""
+    df = pd.DataFrame(
+        list(SAMPLE_MARKET_WEIGHTS.items()),
+        columns=["Asset", "MarketWeight"]
+    )
+    return df
+
+
+def get_sample_covariance_df() -> pd.DataFrame:
+    """Returns a DataFrame of sample covariance matrix."""
+    df = pd.DataFrame(
+        SAMPLE_COV_DATA,
+        index=SAMPLE_ASSETS,
+        columns=SAMPLE_ASSETS
+    )
+    return df
+
+
+def get_sample_views_df(assets: List[str] = None) -> pd.DataFrame:
+    """
+    Returns a sample Views DataFrame.
+    Columns: View_Description, Target_Return (Q), Confidence (0~1 or 0~100%), and asset weight columns (P matrix)
+    """
+    if assets is None:
+        assets = SAMPLE_ASSETS
+
+    # View 1: SPY will outperform EFA by 2.5% (Relative view)
+    # View 2: EEM will have an absolute return of 8.0% (Absolute view)
+    # View 3: GLD will outperform TLT by 1.5% (Relative view)
+    views_data = []
+
+    # View 1
+    row1 = {"View_Description": "미국 대형주(SPY)가 선진국(EFA) 대비 2.5% 초과 상승", "Target_Return": 0.025, "Confidence": 0.65}
+    for a in assets:
+        if "SPY" in a:
+            row1[a] = 1.0
+        elif "EFA" in a:
+            row1[a] = -1.0
+        else:
+            row1[a] = 0.0
+    views_data.append(row1)
+
+    # View 2
+    row2 = {"View_Description": "신흥국 주식(EEM) 절대 기대수익률 8.0%", "Target_Return": 0.080, "Confidence": 0.50}
+    for a in assets:
+        if "EEM" in a:
+            row2[a] = 1.0
+        else:
+            row2[a] = 0.0
+    views_data.append(row2)
+
+    # View 3
+    row3 = {"View_Description": "금(GLD)이 미국 장기채(TLT) 대비 1.5% 초과 상승", "Target_Return": 0.015, "Confidence": 0.70}
+    for a in assets:
+        if "GLD" in a:
+            row3[a] = 1.0
+        elif "TLT" in a:
+            row3[a] = -1.0
+        else:
+            row3[a] = 0.0
+    views_data.append(row3)
+
+    cols = ["View_Description", "Target_Return", "Confidence"] + assets
+    return pd.DataFrame(views_data)[cols]
+
+
+def create_blank_views_template(assets: List[str]) -> pd.DataFrame:
+    """Creates an empty template DataFrame for user views matching the current assets."""
+    cols = ["View_Description", "Target_Return", "Confidence"] + assets
+    empty_data = [{col: (0.0 if col != "View_Description" else "새 견해 예시") for col in cols}]
+    return pd.DataFrame(empty_data)
+
+
+def create_blank_market_template(n_assets: int = 5) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Creates blank template DataFrames for market weights and covariance."""
+    asset_names = [f"Asset_{i+1}" for i in range(n_assets)]
+    weights_df = pd.DataFrame({
+        "Asset": asset_names,
+        "MarketWeight": [round(1.0 / n_assets, 4)] * n_assets
+    })
+    cov_matrix = np.eye(n_assets) * 0.04
+    cov_df = pd.DataFrame(cov_matrix, index=asset_names, columns=asset_names)
+    return weights_df, cov_df
