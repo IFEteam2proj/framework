@@ -212,8 +212,16 @@ with tab_market:
                     total_w = uploaded_weights["MarketWeight"].sum()
                     if total_w > 0:
                         uploaded_weights["MarketWeight"] = uploaded_weights["MarketWeight"] / total_w
+                    new_assets = list(uploaded_weights["Asset"].astype(str))
                     st.session_state.weights_df = uploaded_weights
-                    st.session_state.assets = list(uploaded_weights["Asset"].astype(str))
+                    st.session_state.assets = new_assets
+                    if list(st.session_state.cov_df.columns) != new_assets:
+                        st.session_state.cov_df = pd.DataFrame(
+                            np.eye(len(new_assets)) * 0.04,
+                            index=new_assets,
+                            columns=new_assets
+                        )
+                    st.session_state.views_df = create_blank_views_template(new_assets)
                     st.success(f"시장 가중치 업로드 완료! ({len(st.session_state.assets)}개 자산 인식)")
                 else:
                     st.error("CSV 파일에 'Asset'과 'MarketWeight' 컬럼이 포함되어야 합니다.")
@@ -232,10 +240,23 @@ with tab_market:
             try:
                 uploaded_cov = pd.read_csv(cov_file)
                 # Check if first column contains asset names
-                if not np.issubdtype(uploaded_cov.iloc[:, 0].dtype, np.number):
-                    uploaded_cov = uploaded_cov.set_index(uploaded_cov.columns[0])
-                uploaded_cov = uploaded_cov.apply(pd.to_numeric, errors="coerce")
+                first_col = uploaded_cov.columns[0]
+                if not pd.api.types.is_numeric_dtype(uploaded_cov[first_col]):
+                    uploaded_cov = uploaded_cov.set_index(first_col)
+                uploaded_cov = uploaded_cov.apply(pd.to_numeric, errors="coerce").fillna(0.0)
                 st.session_state.cov_df = uploaded_cov
+                cov_assets = list(uploaded_cov.columns.astype(str))
+
+                # If uploaded covariance matrix assets differ from current assets, synchronize
+                if list(st.session_state.assets) != cov_assets:
+                    st.session_state.assets = cov_assets
+                    st.session_state.weights_df = pd.DataFrame({
+                        "Asset": cov_assets,
+                        "MarketWeight": [round(1.0 / len(cov_assets), 6)] * len(cov_assets)
+                    })
+                    st.session_state.views_df = create_blank_views_template(cov_assets)
+                    st.info(f"💡 공분산 행렬의 {len(cov_assets)}개 자산에 맞추어 자산 목록과 가중치가 자동 동기화되었습니다.")
+
                 st.success(f"공분산 행렬 업로드 완료! ({uploaded_cov.shape[0]}x{uploaded_cov.shape[1]})")
             except Exception as e:
                 st.error(f"공분산 행렬을 읽는 중 오류가 발생했습니다: {e}")
