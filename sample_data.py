@@ -113,3 +113,57 @@ def create_blank_market_template(n_assets: int = 5) -> Tuple[pd.DataFrame, pd.Da
     cov_matrix = np.eye(n_assets) * 0.04
     cov_df = pd.DataFrame(cov_matrix, index=asset_names, columns=asset_names)
     return weights_df, cov_df
+
+
+def generate_sample_monthly_returns(
+    assets: List[str],
+    cov_matrix: np.ndarray = None,
+    seed: int = 42
+) -> pd.DataFrame:
+    """
+    Generates realistic synthetic 2019-2020 monthly returns matching the user's backtest period.
+    From 2019-01-31 to 2020-11-30 (23 months).
+    """
+    dates = [
+        "2019-01-31", "2019-02-28", "2019-03-29", "2019-04-30", "2019-05-31", "2019-06-28",
+        "2019-07-31", "2019-08-30", "2019-09-30", "2019-10-31", "2019-11-29", "2019-12-31",
+        "2020-01-31", "2020-02-28", "2020-03-31", "2020-04-30", "2020-05-29", "2020-06-30",
+        "2020-07-31", "2020-08-31", "2020-09-30", "2020-10-30", "2020-11-30"
+    ]
+    n_months = len(dates)
+    n_assets = len(assets)
+
+    rng = np.random.default_rng(seed)
+
+    if cov_matrix is not None and cov_matrix.shape == (n_assets, n_assets):
+        # Monthly covariance = annual covariance / 12
+        monthly_cov = (cov_matrix + cov_matrix.T) / 2.0 / 12.0
+        # Ensure positive semi-definite
+        eigenvals, eigenvecs = np.linalg.eigh(monthly_cov)
+        eigenvals = np.maximum(eigenvals, 1e-6)
+        monthly_cov = np.dot(eigenvecs, np.dot(np.diag(eigenvals), eigenvecs.T))
+        mean_annual_return = 0.08  # 8% annual
+        mean_monthly = np.full(n_assets, mean_annual_return / 12.0)
+        returns_data = rng.multivariate_normal(mean_monthly, monthly_cov, size=n_months)
+    else:
+        # Default ~15% annual vol -> 15%/sqrt(12) ~ 4.3% monthly vol
+        returns_data = rng.normal(loc=0.007, scale=0.045, size=(n_months, n_assets))
+
+    df = pd.DataFrame(returns_data, index=dates, columns=assets)
+    df.index.name = "Date"
+    return df.round(6).reset_index()
+
+
+def create_blank_monthly_returns_template(assets: List[str]) -> pd.DataFrame:
+    """Creates a blank monthly returns template with 2019-01 to 2020-11 dates."""
+    dates = [
+        "2019-01-31", "2019-02-28", "2019-03-29", "2019-04-30", "2019-05-31", "2019-06-28",
+        "2019-07-31", "2019-08-30", "2019-09-30", "2019-10-31", "2019-11-29", "2019-12-31",
+        "2020-01-31", "2020-02-28", "2020-03-31", "2020-04-30", "2020-05-29", "2020-06-30",
+        "2020-07-31", "2020-08-31", "2020-09-30", "2020-10-30", "2020-11-30"
+    ]
+    df = pd.DataFrame({"Date": dates})
+    for a in assets:
+        df[a] = 0.01  # placeholder 1%
+    return df
+
